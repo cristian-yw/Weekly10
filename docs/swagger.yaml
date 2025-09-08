@@ -1,0 +1,635 @@
+definitions:
+  models.ErrorResponse:
+    properties:
+      error:
+        example: something went wrong
+        type: string
+    type: object
+  models.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  models.Movie:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      release_date:
+        type: string
+      runtime:
+        type: integer
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.MovieDetail:
+    properties:
+      casts:
+        items:
+          type: string
+        type: array
+      genres:
+        items:
+          type: string
+        type: array
+      id:
+        type: integer
+      overview:
+        type: string
+      release_date:
+        type: string
+      runtime:
+        type: integer
+      title:
+        type: string
+    type: object
+  models.MovieRequest:
+    properties:
+      runtime:
+        type: integer
+      title:
+        type: string
+    type: object
+  models.Order:
+    properties:
+      id:
+        type: integer
+      order_date:
+        type: string
+      schedule_id:
+        type: integer
+      seats:
+        items:
+          type: string
+        type: array
+      status:
+        type: string
+      total_price:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  models.RegisterRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  models.Schedule:
+    properties:
+      cinema:
+        type: string
+      date:
+        type: string
+      id:
+        type: integer
+      location:
+        type: string
+      movie_title:
+        type: string
+      start_time:
+        type: string
+    type: object
+  models.Seat:
+    properties:
+      cinema_id:
+        type: integer
+      id:
+        type: integer
+      is_booked:
+        type: boolean
+      seat_code:
+        type: string
+    type: object
+  models.SuccessMessage:
+    properties:
+      message:
+        example: Movie updated successfully
+        type: string
+    type: object
+  models.TMDBMovie:
+    properties:
+      backdrop_path:
+        type: string
+      genre_ids:
+        items:
+          type: integer
+        type: array
+      id:
+        type: integer
+      overview:
+        type: string
+      popularity:
+        type: number
+      poster_path:
+        type: string
+      release_date:
+        type: string
+      runtime:
+        type: integer
+      title:
+        type: string
+      tmdb_id:
+        type: integer
+      vote_average:
+        type: number
+      vote_count:
+        type: integer
+    type: object
+  models.UserProfileResponse:
+    properties:
+      avatar_url:
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      phone:
+        type: string
+      role:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.UserProfileUpdate:
+    properties:
+      avatar_url:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      phone:
+        type: string
+    type: object
+info:
+  contact: {}
+paths:
+  /admin/movies:
+    get:
+      description: Get list of all movies (Admin only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Movie'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Get All Movies
+      tags:
+      - Admin
+  /admin/movies/{id}:
+    delete:
+      description: Delete movie by ID (Admin only)
+      parameters:
+      - description: Movie ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Delete Movie
+      tags:
+      - Admin
+    put:
+      consumes:
+      - application/json
+      description: Update movie by ID (Admin only)
+      parameters:
+      - description: Movie ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Movie info
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.MovieRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessMessage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - Bearer: []
+      summary: Update Movie
+      tags:
+      - Admin
+  /auth/history:
+    get:
+      description: Get logged-in user's order history
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Order'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - Bearer: []
+      summary: Get Order History
+      tags:
+      - Users
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user and return JWT token
+      parameters:
+      - description: Login info
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessMessage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Login user
+      tags:
+      - Auth
+  /auth/profile:
+    get:
+      description: Get logged-in user's profile information
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UserProfileResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - Bearer: []
+      summary: Get User Profile
+      tags:
+      - Users
+    put:
+      consumes:
+      - application/json
+      description: Update logged-in user's profile
+      parameters:
+      - description: Profile update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UserProfileUpdate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UserProfileResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - Bearer: []
+      summary: Edit Profile
+      tags:
+      - Users
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account
+      parameters:
+      - description: Register info
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.SuccessMessage'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Register new user
+      tags:
+      - Auth
+  /movies/filter:
+    get:
+      description: Filter movies by name or genre with pagination
+      parameters:
+      - description: Movie name keyword
+        in: query
+        name: name
+        type: string
+      - description: Genre ID
+        in: query
+        name: genre_id
+        type: integer
+      - default: 10
+        description: Number of movies per page
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.TMDBMovie'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Filter Movies
+      tags:
+      - Movies
+  /movies/popular:
+    get:
+      description: List popular movies with pagination
+      parameters:
+      - default: 10
+        description: Number of movies per page
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.TMDBMovie'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Popular Movies
+      tags:
+      - Movies
+  /movies/sync/popular:
+    post:
+      description: Fetch popular movies from TMDB and store in database
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Sync Popular Movies
+      tags:
+      - Movies
+  /movies/upcoming:
+    get:
+      description: List upcoming movies with pagination
+      parameters:
+      - default: 10
+        description: Number of movies per page
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.TMDBMovie'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Upcoming Movies
+      tags:
+      - Movies
+  /orders/:
+    post:
+      consumes:
+      - application/json
+      description: Create a new order including seats selection
+      parameters:
+      - description: Order Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.Order'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Order'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create Order
+      tags:
+      - Orders
+  /orders/{movieId}:
+    get:
+      description: Get detailed information of a specific movie
+      parameters:
+      - description: Movie ID
+        in: path
+        name: movieId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.MovieDetail'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get Movie Detail
+      tags:
+      - Orders
+  /orders/{movieId}/schedules:
+    get:
+      description: Get all schedules for a specific movie
+      parameters:
+      - description: Movie ID
+        in: path
+        name: movieId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Schedule'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get Movie Schedules
+      tags:
+      - Orders
+  /orders/seats/{scheduleId}:
+    get:
+      description: Get available seats for a specific schedule
+      parameters:
+      - description: Schedule ID
+        in: path
+        name: scheduleId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Seat'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get Available Seats
+      tags:
+      - Orders
+securityDefinitions:
+  Bearer:
+    description: 'Enter your user JWT token like: Bearer <token>'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
