@@ -16,32 +16,123 @@ const docTemplate = `{
     "basePath": "{{.BasePath}}",
     "paths": {
         "/admin/movies": {
-            "get": {
+            "post": {
                 "security": [
                     {
-                        "Bearer": []
+                        "BearerAuth": []
                     }
                 ],
-                "description": "Get list of all movies (Admin only)",
+                "description": "Admin can add a new movie along with its schedules (cinema, location, time, date).",
+                "consumes": [
+                    "multipart/form-data"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Admin"
                 ],
-                "summary": "Get All Movies",
+                "summary": "Create a new movie (with schedules)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Movie Title",
+                        "name": "title",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Overview",
+                        "name": "overview",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Release Date (YYYY-MM-DD)",
+                        "name": "release_date",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Runtime in minutes",
+                        "name": "runtime",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "TMDB ID",
+                        "name": "tmdb_id",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Popularity",
+                        "name": "popularity",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Vote Average",
+                        "name": "vote_average",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Vote Count",
+                        "name": "vote_count",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma separated genres (e.g. Action,Drama)",
+                        "name": "genres",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "JSON array of schedules. Example: [{\\",
+                        "name": "schedules",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Poster image file",
+                        "name": "poster",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Backdrop image file",
+                        "name": "backdrop",
+                        "in": "formData"
+                    }
+                ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "movie_id returned",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.Movie"
-                            }
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized (Missing or invalid token)",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Server error",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
                         }
@@ -50,15 +141,11 @@ const docTemplate = `{
             }
         },
         "/admin/movies/{id}": {
-            "put": {
+            "get": {
                 "security": [
                     {
-                        "Bearer": []
+                        "BearerAuth": []
                     }
-                ],
-                "description": "Update movie by ID (Admin only)",
-                "consumes": [
-                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -66,7 +153,7 @@ const docTemplate = `{
                 "tags": [
                     "Admin"
                 ],
-                "summary": "Update Movie",
+                "summary": "Get movie by ID",
                 "parameters": [
                     {
                         "type": "integer",
@@ -74,22 +161,59 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "description": "Movie info",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.MovieRequest"
-                        }
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.SuccessMessage"
+                            "$ref": "#/definitions/models.TMDBMovie"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Delete movie",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Movie ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "400": {
@@ -106,17 +230,22 @@ const docTemplate = `{
                     }
                 }
             },
-            "delete": {
+            "patch": {
                 "security": [
                     {
-                        "Bearer": []
+                        "BearerAuth": []
                     }
                 ],
-                "description": "Delete movie by ID (Admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "Admin"
                 ],
-                "summary": "Delete Movie",
+                "summary": "Patch update movie",
                 "parameters": [
                     {
                         "type": "integer",
@@ -124,13 +253,31 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Partial movie update (only send fields you want to update)",
+                        "name": "movie",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.SuccessMessage"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
                         }
                     },
                     "500": {
@@ -142,38 +289,32 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/history": {
-            "get": {
+        "/admin/sync/popular": {
+            "post": {
                 "security": [
                     {
-                        "Bearer": []
+                        "BearerAuth": []
                     }
                 ],
-                "description": "Get logged-in user's order history",
+                "description": "Fetch popular movies from TMDB and store in database",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Users"
+                    "Admin"
                 ],
-                "summary": "Get Order History",
+                "summary": "Sync Popular Movies",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.Order"
-                            }
+                            "$ref": "#/definitions/models.SuccessMessage"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/models.ErrorResponse"
                         }
                     }
                 }
@@ -225,46 +366,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/profile": {
-            "get": {
+        "/auth/logout": {
+            "post": {
                 "security": [
                     {
-                        "Bearer": []
+                        "BearerAuth": []
                     }
                 ],
-                "description": "Get logged-in user's profile information",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Users"
-                ],
-                "summary": "Get User Profile",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.UserProfileResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            },
-            "put": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "Update logged-in user's profile",
+                "description": "Mem-blacklist JWT token agar tidak bisa dipakai lagi.",
                 "consumes": [
                     "application/json"
                 ],
@@ -272,25 +381,17 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Users"
+                    "Auth"
                 ],
-                "summary": "Edit Profile",
-                "parameters": [
-                    {
-                        "description": "Profile update request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.UserProfileUpdate"
-                        }
-                    }
-                ],
+                "summary": "Logout user",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.UserProfileResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "400": {
@@ -302,8 +403,8 @@ const docTemplate = `{
                             }
                         }
                     },
-                    "500": {
-                        "description": "Internal Server Error",
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -360,9 +461,36 @@ const docTemplate = `{
                 }
             }
         },
+        "/movies/all": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Movies"
+                ],
+                "summary": "Get all movies",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.TMDBMovie"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/movies/filter": {
             "get": {
-                "description": "Filter movies by name or genre with pagination",
                 "produces": [
                     "application/json"
                 ],
@@ -419,7 +547,6 @@ const docTemplate = `{
         },
         "/movies/popular": {
             "get": {
-                "description": "List popular movies with pagination",
                 "produces": [
                     "application/json"
                 ],
@@ -462,35 +589,8 @@ const docTemplate = `{
                 }
             }
         },
-        "/movies/sync/popular": {
-            "post": {
-                "description": "Fetch popular movies from TMDB and store in database",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Movies"
-                ],
-                "summary": "Sync Popular Movies",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.SuccessMessage"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/movies/upcoming": {
             "get": {
-                "description": "List upcoming movies with pagination",
                 "produces": [
                     "application/json"
                 ],
@@ -535,6 +635,11 @@ const docTemplate = `{
         },
         "/orders/": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create a new order including seats selection",
                 "consumes": [
                     "application/json"
@@ -587,6 +692,11 @@ const docTemplate = `{
         },
         "/orders/seats/{scheduleId}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get available seats for a specific schedule",
                 "produces": [
                     "application/json"
@@ -628,6 +738,11 @@ const docTemplate = `{
         },
         "/orders/{movieId}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get detailed information of a specific movie",
                 "produces": [
                     "application/json"
@@ -666,14 +781,19 @@ const docTemplate = `{
         },
         "/orders/{movieId}/schedules": {
             "get": {
-                "description": "Get all schedules for a specific movie",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all schedules for a specific movie with optional filters:\n- cinemaName (string, partial match)\n- locationName (string, partial match)\n- startTime (HH:MM format)\n- date (YYYY-MM-DD format)",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Orders"
                 ],
-                "summary": "Get Movie Schedules",
+                "summary": "Get Movie Schedules with Filters",
                 "parameters": [
                     {
                         "type": "integer",
@@ -681,6 +801,30 @@ const docTemplate = `{
                         "name": "movieId",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by cinema name (partial match)",
+                        "name": "cinemaName",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by location name (partial match)",
+                        "name": "locationName",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by start time (HH:MM)",
+                        "name": "startTime",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by date (YYYY-MM-DD)",
+                        "name": "date",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -690,6 +834,15 @@ const docTemplate = `{
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/models.Schedule"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
                             }
                         }
                     },
@@ -704,9 +857,230 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/user/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get logged-in user's order history",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get Order History",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Order"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/user/password": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Ganti password akun. User harus mengirim password lama dan password baru.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Change user password",
+                "parameters": [
+                    {
+                        "description": "Current \u0026 new password",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ChangePasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "message: password updated successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "invalid request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "current password is incorrect",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/user/profile": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get logged-in user's profile information",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get User Profile",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.UserProfileResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Edit profile sekaligus upload avatar (opsional). Hanya field yang dikirim yang akan di-update.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Update user profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "First name",
+                        "name": "first_name",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Last name",
+                        "name": "last_name",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Phone number",
+                        "name": "phone",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "Avatar image",
+                        "name": "avatar",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.User"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "models.ChangePasswordRequest": {
+            "type": "object",
+            "properties": {
+                "current_password": {
+                    "type": "string"
+                },
+                "new_password": {
+                    "type": "string"
+                }
+            }
+        },
         "models.ErrorResponse": {
             "type": "object",
             "properties": {
@@ -731,37 +1105,20 @@ const docTemplate = `{
                 }
             }
         },
-        "models.Movie": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "release_date": {
-                    "type": "string"
-                },
-                "runtime": {
-                    "type": "integer"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
         "models.MovieDetail": {
             "type": "object",
             "properties": {
+                "backdrop_path": {
+                    "type": "string"
+                },
                 "casts": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
+                },
+                "director": {
+                    "type": "string"
                 },
                 "genres": {
                     "type": "array",
@@ -775,22 +1132,20 @@ const docTemplate = `{
                 "overview": {
                     "type": "string"
                 },
+                "poster_path": {
+                    "type": "string"
+                },
                 "release_date": {
                     "type": "string"
                 },
                 "runtime": {
                     "type": "integer"
                 },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.MovieRequest": {
-            "type": "object",
-            "properties": {
-                "runtime": {
-                    "type": "integer"
+                "schedules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Schedule"
+                    }
                 },
                 "title": {
                     "type": "string"
@@ -856,6 +1211,9 @@ const docTemplate = `{
                 "location": {
                     "type": "string"
                 },
+                "movie_id": {
+                    "type": "integer"
+                },
                 "movie_title": {
                     "type": "string"
                 },
@@ -896,10 +1254,10 @@ const docTemplate = `{
                 "backdrop_path": {
                     "type": "string"
                 },
-                "genre_ids": {
+                "genres": {
                     "type": "array",
                     "items": {
-                        "type": "integer"
+                        "type": "string"
                     }
                 },
                 "id": {
@@ -934,6 +1292,29 @@ const docTemplate = `{
                 }
             }
         },
+        "models.User": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "models.UserProfileResponse": {
             "type": "object",
             "properties": {
@@ -959,27 +1340,10 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
-        },
-        "models.UserProfileUpdate": {
-            "type": "object",
-            "properties": {
-                "avatar_url": {
-                    "type": "string"
-                },
-                "first_name": {
-                    "type": "string"
-                },
-                "last_name": {
-                    "type": "string"
-                },
-                "phone": {
-                    "type": "string"
-                }
-            }
         }
     },
     "securityDefinitions": {
-        "Bearer": {
+        "BearerAuth": {
             "description": "Enter your user JWT token like: Bearer \u003ctoken\u003e",
             "type": "apiKey",
             "name": "Authorization",

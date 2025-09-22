@@ -4,169 +4,111 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
+	"log"
+	"time"
 
 	"github.com/cristian-yw/Weekly10/internal/models"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 type MovieRepository struct {
-	DB *pgxpool.Pool
+	DB  *pgxpool.Pool
+	rdb *redis.Client
 }
 
-func NewMovieRepository(db *pgxpool.Pool) *MovieRepository {
-	return &MovieRepository{DB: db}
+func NewMovieRepository(db *pgxpool.Pool, rdb *redis.Client) *MovieRepository {
+	return &MovieRepository{DB: db, rdb: rdb}
 }
 
-// -------------------- DB OPS --------------------
+const cacheTTL = 5 * time.Minute
 
-// Insert / Update Movie
-func (r *MovieRepository) upsertMovie(m models.TMDBMovie) (int, error) {
-	var movieID int
-	err := r.DB.QueryRow(
-		context.Background(),
-		`INSERT INTO movies (tmdb_id, title, overview, release_date, runtime, poster_path, backdrop_path, popularity, vote_average, vote_count, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW(),NOW())
-		ON CONFLICT (tmdb_id) DO UPDATE SET
-			title=EXCLUDED.title,
-			overview=EXCLUDED.overview,
-			release_date=EXCLUDED.release_date,
-			runtime=EXCLUDED.runtime,
-			poster_path=EXCLUDED.poster_path,
-			backdrop_path=EXCLUDED.backdrop_path,
-			popularity=EXCLUDED.popularity,
-			vote_average=EXCLUDED.vote_average,
-			vote_count=EXCLUDED.vote_count,
-			updated_at=NOW()
-		RETURNING id`,
-		m.ID, m.Title, m.Overview, m.ReleaseDate, m.Runtime,
-		m.PosterPath, m.BackdropPath, m.Popularity, m.VoteAverage, m.VoteCount,
-	).Scan(&movieID)
+// GetUpcomingMovies with Redis
+func (r *MovieRepository) GetUpcomingMovies(ctx context.Context, limit, offset int) ([]models.TMDBMovie, error) {
+	key := fmt.Sprintf("movies:upcoming:%d:%d", limit, offset)
+	if data, err := r.rdb.Get(ctx, key).Bytes(); err == nil {
+		var cached []models.TMDBMovie
+		if json.Unmarshal(data, &cached) == nil {
+			return cached, nil
+		}
+	}
 
-	return movieID, err
-}
-
-// Insert genre jika belum ada
-func (r *MovieRepository) upsertGenre(tmdbID int, name string) (int, error) {
-	var genreID int
-	err := r.DB.QueryRow(context.Background(), `
-		INSERT INTO genres (tmdb_id, name)
-		VALUES ($1,$2)
-		ON CONFLICT (tmdb_id) DO UPDATE SET name=EXCLUDED.name
-		RETURNING id
-	`, tmdbID, name).Scan(&genreID)
-
-	return genreID, err
-}
-
-// Relasi movie_genres
-func (r *MovieRepository) linkMovieGenre(movieID, genreID int) error {
-	_, err := r.DB.Exec(context.Background(), `
-		INSERT INTO movie_genres (movie_id, genre_id)
-		VALUES ($1,$2)
-		ON CONFLICT DO NOTHING
-	`, movieID, genreID)
-	return err
-}
-
-// Insert kategori
-func (r *MovieRepository) upsertCategory(name string) (int, error) {
-	var categoryID int
-	err := r.DB.QueryRow(context.Background(), `
-		INSERT INTO categories (name)
-		VALUES ($1)
-		ON CONFLICT (name) DO UPDATE SET name=EXCLUDED.name
-		RETURNING id
-	`, name).Scan(&categoryID)
-
-	return categoryID, err
-}
-
-// Relasi movie_categories
-func (r *MovieRepository) linkMovieCategory(movieID, categoryID int) error {
-	_, err := r.DB.Exec(context.Background(), `
-		INSERT INTO movie_categories (movie_id, category_id)
-		VALUES ($1,$2)
-		ON CONFLICT DO NOTHING
-	`, movieID, categoryID)
-	return err
-}
-
-func (r *MovieRepository) fetchGenres(apiKey string) (map[int]string, error) {
-	url := fmt.Sprintf("https://api.themoviedb.org/3/genre/movie/list?api_key=%s", apiKey)
-
-	resp, err := http.Get(url)
+	movies, err := r.getUpcomingMoviesDB(ctx, limit, offset)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-
-	var genreResp models.TMDBGenreResponse
-	if err := json.NewDecoder(resp.Body).Decode(&genreResp); err != nil {
-		return nil, err
-	}
-
-	genreMap := make(map[int]string)
-	for _, g := range genreResp.Genres {
-		genreMap[g.ID] = g.Name
-	}
-	return genreMap, nil
+	_ = r.cache(ctx, key, movies)
+	return movies, nil
 }
 
-// Sinkronisasi popular movies
-func (r *MovieRepository) SyncPopular(apiKey string) error {
-	genreMap, err := r.fetchGenres(apiKey)
-	if err != nil {
-		return err
-	}
-
-	// Fetch popular movies
-	url := fmt.Sprintf("https://api.themoviedb.org/3/movie/upcoming?api_key=%s", apiKey)
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	var result models.TMDBResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return err
-	}
-
-	categoryID, err := r.upsertCategory("popular")
-	if err != nil {
-		return err
-	}
-
-	// Simpan semua movie
-	for _, m := range result.Results {
-		movieID, err := r.upsertMovie(m)
-		if err != nil {
-			return err
-		}
-
-		// Simpan genre
-		for _, gid := range m.GenreIDs {
-			name := genreMap[gid]
-			genreID, err := r.upsertGenre(gid, name)
-			if err != nil {
-				return err
-			}
-			if err := r.linkMovieGenre(movieID, genreID); err != nil {
-				return err
-			}
-		}
-
-		if err := r.linkMovieCategory(movieID, categoryID); err != nil {
-			return err
+// GetPopularMovies with Redis
+func (r *MovieRepository) GetPopularMovies(ctx context.Context, limit, offset int) ([]models.TMDBMovie, error) {
+	key := fmt.Sprintf("movies:popular:%d:%d", limit, offset)
+	if data, err := r.rdb.Get(ctx, key).Bytes(); err == nil {
+		var cached []models.TMDBMovie
+		if json.Unmarshal(data, &cached) == nil {
+			return cached, nil
 		}
 	}
 
+	movies, err := r.getPopularMoviesDB(ctx, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	_ = r.cache(ctx, key, movies)
+	return movies, nil
+}
+
+// GetMoviesWithFilter with Redis
+func (r *MovieRepository) GetMoviesWithFilter(ctx context.Context, name string, genreID int, limit, offset int) ([]models.TMDBMovie, error) {
+	key := fmt.Sprintf("movies:filter:%s:%d:%d:%d", name, genreID, limit, offset)
+	if data, err := r.rdb.Get(ctx, key).Bytes(); err == nil {
+		var cached []models.TMDBMovie
+		if json.Unmarshal(data, &cached) == nil {
+			return cached, nil
+		}
+	}
+
+	movies, err := r.getMoviesWithFilterDB(ctx, name, genreID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	_ = r.cache(ctx, key, movies)
+	return movies, nil
+}
+
+// GetAllMovies with Redis
+func (r *MovieRepository) GetAllMovies(ctx context.Context) ([]models.TMDBMovie, error) {
+	key := "movies:all"
+	if data, err := r.rdb.Get(ctx, key).Bytes(); err == nil {
+		var cached []models.TMDBMovie
+		if json.Unmarshal(data, &cached) == nil {
+			return cached, nil
+		}
+	}
+
+	movies, err := r.getAllMoviesDB(ctx)
+	if err != nil {
+		return nil, err
+	}
+	_ = r.cache(ctx, key, movies)
+	return movies, nil
+}
+
+func (r *MovieRepository) cache(ctx context.Context, key string, movies []models.TMDBMovie) error {
+	data, err := json.Marshal(movies)
+	if err != nil {
+		return err
+	}
+	if err := r.rdb.Set(ctx, key, data, cacheTTL).Err(); err != nil {
+		log.Println("Redis SET error:", err)
+	}
 	return nil
 }
 
-// Get Upcoming Movies
-func (r *MovieRepository) GetUpcomingMovies(ctx context.Context, limit, offset int) ([]models.TMDBMovie, error) {
+// -------------------- Raw DB queries --------------------
+
+func (r *MovieRepository) getUpcomingMoviesDB(ctx context.Context, limit, offset int) ([]models.TMDBMovie, error) {
 	rows, err := r.DB.Query(ctx, `
 		SELECT 
 			m.id,
@@ -198,7 +140,6 @@ func (r *MovieRepository) GetUpcomingMovies(ctx context.Context, limit, offset i
 	for rows.Next() {
 		var m models.TMDBMovie
 		var genreIDs []int32
-
 		if err := rows.Scan(
 			&m.ID,
 			&m.TMDBID,
@@ -219,13 +160,12 @@ func (r *MovieRepository) GetUpcomingMovies(ctx context.Context, limit, offset i
 		for i, g := range genreIDs {
 			m.GenreIDs[i] = int(g)
 		}
-
 		movies = append(movies, m)
 	}
 	return movies, nil
 }
 
-func (r *MovieRepository) GetPopularMovies(ctx context.Context, limit, offset int) ([]models.TMDBMovie, error) {
+func (r *MovieRepository) getPopularMoviesDB(ctx context.Context, limit, offset int) ([]models.TMDBMovie, error) {
 	rows, err := r.DB.Query(ctx, `
 		SELECT 
 			m.id,
@@ -256,7 +196,6 @@ func (r *MovieRepository) GetPopularMovies(ctx context.Context, limit, offset in
 	for rows.Next() {
 		var m models.TMDBMovie
 		var genreIDs []int32
-
 		if err := rows.Scan(
 			&m.ID,
 			&m.TMDBID,
@@ -273,31 +212,35 @@ func (r *MovieRepository) GetPopularMovies(ctx context.Context, limit, offset in
 		); err != nil {
 			return nil, err
 		}
-
 		m.GenreIDs = make([]int, len(genreIDs))
 		for i, g := range genreIDs {
 			m.GenreIDs[i] = int(g)
 		}
-
 		movies = append(movies, m)
 	}
-
 	return movies, nil
 }
 
-// Get Movie with Filter
-func (r *MovieRepository) GetMoviesWithFilter(ctx context.Context, name string, genreID int, limit, offset int) ([]models.TMDBMovie, error) {
-	query := `
+func (r *MovieRepository) getMoviesWithFilterDB(
+	ctx context.Context,
+	name string,
+	genreID int,
+	limit, offset int,
+) ([]models.TMDBMovie, error) {
+	rows, err := r.DB.Query(ctx, `
 		SELECT 
 			m.id, 
 			m.tmdb_id, 
 			m.title, 
 			m.overview, 
-			COALESCE(TO_CHAR(m.release_date, 'YYYY-MM-DD'), '') AS release_date, 
+			COALESCE(TO_CHAR(m.release_date, 'YYYY-MM-DD'), '') AS release_date,
+			COALESCE(m.runtime, 0) AS runtime,
+			COALESCE(m.poster_path, '') AS poster_path,
+			COALESCE(m.backdrop_path, '') AS backdrop_path,
 			m.popularity, 
 			m.vote_average, 
 			m.vote_count, 
-			COALESCE(array_agg(DISTINCT g.id) FILTER (WHERE g.id IS NOT NULL), '{}') AS genre_ids
+			COALESCE(array_agg(DISTINCT g.name) FILTER (WHERE g.name IS NOT NULL), '{}') AS genres
 		FROM movies m
 		LEFT JOIN movie_genres mg ON mg.movie_id = m.id
 		LEFT JOIN genres g ON g.id = mg.genre_id
@@ -305,10 +248,8 @@ func (r *MovieRepository) GetMoviesWithFilter(ctx context.Context, name string, 
 		  AND ($2 = 0 OR g.tmdb_id = $2)
 		GROUP BY m.id
 		ORDER BY m.release_date DESC
-		LIMIT $3 OFFSET $4
-	`
-
-	rows, err := r.DB.Query(ctx, query, name, genreID, limit, offset)
+		LIMIT $3 OFFSET $4;
+	`, name, genreID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -317,8 +258,66 @@ func (r *MovieRepository) GetMoviesWithFilter(ctx context.Context, name string, 
 	var movies []models.TMDBMovie
 	for rows.Next() {
 		var m models.TMDBMovie
-		var genreIDs []int32
-		err := rows.Scan(
+		var genres []string
+		if err := rows.Scan(
+			&m.ID,
+			&m.TMDBID,
+			&m.Title,
+			&m.Overview,
+			&m.ReleaseDate,
+			&m.Runtime,
+			&m.PosterPath,
+			&m.BackdropPath,
+			&m.Popularity,
+			&m.VoteAverage,
+			&m.VoteCount,
+			&genres,
+		); err != nil {
+			return nil, err
+		}
+		m.Genres = genres
+		movies = append(movies, m)
+	}
+
+	// biar tidak null di JSON
+	if movies == nil {
+		movies = []models.TMDBMovie{}
+	}
+
+	return movies, nil
+}
+
+func (r *MovieRepository) getAllMoviesDB(ctx context.Context) ([]models.TMDBMovie, error) {
+	rows, err := r.DB.Query(ctx, `
+		SELECT 
+			m.id,
+			m.tmdb_id,
+			m.title,
+			m.overview,
+			COALESCE(TO_CHAR(m.release_date, 'YYYY-MM-DD'), '') AS release_date,
+			m.popularity,
+			m.vote_average,
+			m.vote_count,
+			COALESCE(array_agg(DISTINCT g.name) FILTER (WHERE g.name IS NOT NULL), '{}') AS genres,
+			COALESCE(m.poster_path, '') AS poster_path,
+			COALESCE(m.backdrop_path, '') AS backdrop_path,
+			COALESCE(m.runtime, 0) AS runtime
+		FROM movies m
+		LEFT JOIN movie_genres mg ON m.id = mg.movie_id
+		LEFT JOIN genres g ON mg.genre_id = g.id
+		GROUP BY m.id
+		ORDER BY m.release_date DESC;
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var movies []models.TMDBMovie
+	for rows.Next() {
+		var m models.TMDBMovie
+		var genres []string
+		if err := rows.Scan(
 			&m.ID,
 			&m.TMDBID,
 			&m.Title,
@@ -327,21 +326,48 @@ func (r *MovieRepository) GetMoviesWithFilter(ctx context.Context, name string, 
 			&m.Popularity,
 			&m.VoteAverage,
 			&m.VoteCount,
-			&genreIDs,
-		)
-		if err != nil {
+			&genres,
+			&m.PosterPath,
+			&m.BackdropPath,
+			&m.Runtime,
+		); err != nil {
+			log.Println("Scan error:", err)
 			return nil, err
 		}
-		m.GenreIDs = make([]int, len(genreIDs))
-		for i, g := range genreIDs {
-			m.GenreIDs[i] = int(g)
-		}
+		m.Genres = genres
 		movies = append(movies, m)
 	}
+	return movies, nil
+}
 
-	if rows.Err() != nil {
-		return nil, rows.Err()
+func (r *MovieRepository) CountMoviesWithFilter(ctx context.Context, name string, genreID int) (int, error) {
+	var total int
+
+	query := `
+        SELECT COUNT(DISTINCT m.id)
+        FROM movies m
+        LEFT JOIN movie_genres mg ON m.id = mg.movie_id
+        WHERE 1=1
+    `
+	args := []interface{}{}
+	argIdx := 1
+
+	if name != "" {
+		query += fmt.Sprintf(" AND m.title ILIKE $%d", argIdx)
+		args = append(args, "%"+name+"%")
+		argIdx++
 	}
 
-	return movies, nil
+	if genreID != 0 {
+		query += fmt.Sprintf(" AND mg.genre_id = $%d", argIdx)
+		args = append(args, genreID)
+		argIdx++
+	}
+
+	err := r.DB.QueryRow(ctx, query, args...).Scan(&total)
+	if err != nil {
+		return 0, err
+	}
+
+	return total, nil
 }

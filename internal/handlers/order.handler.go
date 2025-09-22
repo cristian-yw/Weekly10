@@ -16,21 +16,50 @@ func NewOrderHandler(repo *repository.OrderRepository) *OrderHandler {
 	return &OrderHandler{repo: repo}
 }
 
-// @Summary Get Movie Schedules
-// @Description Get all schedules for a specific movie
-// @Tags Orders
-// @Produce json
-// @Param movieId path int true "Movie ID"
-// @Success 200 {array} models.Schedule
-// @Failure 500 {object} map[string]string
-// @Router /orders/{movieId}/schedules [get]
+// @Summary     Get Movie Schedules with Filters
+// @Description Get all schedules for a specific movie with optional filters:
+// @Description - cinemaName (string, partial match)
+// @Description - locationName (string, partial match)
+// @Description - startTime (HH:MM format)
+// @Description - date (YYYY-MM-DD format)
+// @Tags        Orders
+// @Produce     json
+// @Param       movieId     path   int    true  "Movie ID"
+// @Param       cinemaName  query  string false "Filter by cinema name (partial match)"
+// @Param       locationName query string false "Filter by location name (partial match)"
+// @Param       startTime   query  string false "Filter by start time (HH:MM)"
+// @Param       date        query  string false "Filter by date (YYYY-MM-DD)"
+// @Success     200 {array} models.Schedule
+// @Failure     400 {object} map[string]string
+// @Failure     500 {object} map[string]string
+// @Security    BearerAuth
+// @Router      /orders/{movieId}/schedules [get]
 func (h *OrderHandler) GetSchedule(c *gin.Context) {
-	movieID, _ := strconv.Atoi(c.Param("movieId"))
-	schedules, err := h.repo.GetSchedule(c, movieID)
+	movieID, err := strconv.Atoi(c.Param("movieId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid movieId"})
+		return
+	}
+
+	// Ambil query param filter (bisa kosong jika tidak diisi)
+	cinemaName := c.Query("cinemaName")
+	locationName := c.Query("locationName")
+	startTime := c.Query("startTime")
+	date := c.Query("date")
+
+	schedules, err := h.repo.GetSchedule(
+		c,
+		movieID,
+		cinemaName,
+		locationName,
+		startTime,
+		date,
+	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusOK, schedules)
 }
 
@@ -41,6 +70,7 @@ func (h *OrderHandler) GetSchedule(c *gin.Context) {
 // @Param scheduleId path int true "Schedule ID"
 // @Success 200 {array} models.Seat
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /orders/seats/{scheduleId} [get]
 func (h *OrderHandler) GetAvailableSeats(c *gin.Context) {
 	scheduleID, _ := strconv.Atoi(c.Param("scheduleId"))
@@ -59,14 +89,26 @@ func (h *OrderHandler) GetAvailableSeats(c *gin.Context) {
 // @Param movieId path int true "Movie ID"
 // @Success 200 {object} models.MovieDetail
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /orders/{movieId} [get]
 func (h *OrderHandler) GetMovieDetail(c *gin.Context) {
-	movieID, _ := strconv.Atoi(c.Param("movieId"))
-	movie, err := h.repo.GetMovieDetail(c, movieID)
+	movieIDStr := c.Param("movieId")
+	movieID, err := strconv.Atoi(movieIDStr)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid movie ID",
+		})
 		return
 	}
+
+	movie, err := h.repo.GetMovieDetail(c, movieID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, movie)
 }
 
@@ -79,6 +121,7 @@ func (h *OrderHandler) GetMovieDetail(c *gin.Context) {
 // @Success 201 {object} models.Order
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /orders/ [post]
 func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	var req struct {

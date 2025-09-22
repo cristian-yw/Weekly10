@@ -1,4 +1,11 @@
 definitions:
+  models.ChangePasswordRequest:
+    properties:
+      current_password:
+        type: string
+      new_password:
+        type: string
+    type: object
   models.ErrorResponse:
     properties:
       error:
@@ -15,27 +22,16 @@ definitions:
     - email
     - password
     type: object
-  models.Movie:
-    properties:
-      created_at:
-        type: string
-      id:
-        type: integer
-      release_date:
-        type: string
-      runtime:
-        type: integer
-      title:
-        type: string
-      updated_at:
-        type: string
-    type: object
   models.MovieDetail:
     properties:
+      backdrop_path:
+        type: string
       casts:
         items:
           type: string
         type: array
+      director:
+        type: string
       genres:
         items:
           type: string
@@ -44,17 +40,16 @@ definitions:
         type: integer
       overview:
         type: string
+      poster_path:
+        type: string
       release_date:
         type: string
       runtime:
         type: integer
-      title:
-        type: string
-    type: object
-  models.MovieRequest:
-    properties:
-      runtime:
-        type: integer
+      schedules:
+        items:
+          $ref: '#/definitions/models.Schedule'
+        type: array
       title:
         type: string
     type: object
@@ -97,6 +92,8 @@ definitions:
         type: integer
       location:
         type: string
+      movie_id:
+        type: integer
       movie_title:
         type: string
       start_time:
@@ -123,9 +120,9 @@ definitions:
     properties:
       backdrop_path:
         type: string
-      genre_ids:
+      genres:
         items:
-          type: integer
+          type: string
         type: array
       id:
         type: integer
@@ -148,6 +145,21 @@ definitions:
       vote_count:
         type: integer
     type: object
+  models.User:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      role:
+        type: string
+      updated_at:
+        type: string
+    type: object
   models.UserProfileResponse:
     properties:
       avatar_url:
@@ -165,87 +177,110 @@ definitions:
       user_id:
         type: integer
     type: object
-  models.UserProfileUpdate:
-    properties:
-      avatar_url:
-        type: string
-      first_name:
-        type: string
-      last_name:
-        type: string
-      phone:
-        type: string
-    type: object
 info:
   contact: {}
 paths:
   /admin/movies:
-    get:
-      description: Get list of all movies (Admin only)
+    post:
+      consumes:
+      - multipart/form-data
+      description: Admin can add a new movie along with its schedules (cinema, location,
+        time, date).
+      parameters:
+      - description: Movie Title
+        in: formData
+        name: title
+        required: true
+        type: string
+      - description: Overview
+        in: formData
+        name: overview
+        required: true
+        type: string
+      - description: Release Date (YYYY-MM-DD)
+        in: formData
+        name: release_date
+        required: true
+        type: string
+      - description: Runtime in minutes
+        in: formData
+        name: runtime
+        required: true
+        type: integer
+      - description: TMDB ID
+        in: formData
+        name: tmdb_id
+        type: integer
+      - description: Popularity
+        in: formData
+        name: popularity
+        type: number
+      - description: Vote Average
+        in: formData
+        name: vote_average
+        type: number
+      - description: Vote Count
+        in: formData
+        name: vote_count
+        type: integer
+      - description: Comma separated genres (e.g. Action,Drama)
+        in: formData
+        name: genres
+        type: string
+      - description: 'JSON array of schedules. Example: [{\'
+        in: formData
+        name: schedules
+        type: string
+      - description: Poster image file
+        in: formData
+        name: poster
+        type: file
+      - description: Backdrop image file
+        in: formData
+        name: backdrop
+        type: file
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "201":
+          description: movie_id returned
           schema:
-            items:
-              $ref: '#/definitions/models.Movie'
-            type: array
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid input
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized (Missing or invalid token)
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
         "500":
-          description: Internal Server Error
+          description: Server error
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       security:
-      - Bearer: []
-      summary: Get All Movies
+      - BearerAuth: []
+      summary: Create a new movie (with schedules)
       tags:
       - Admin
   /admin/movies/{id}:
     delete:
-      description: Delete movie by ID (Admin only)
       parameters:
       - description: Movie ID
         in: path
         name: id
         required: true
         type: integer
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessMessage'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - Bearer: []
-      summary: Delete Movie
-      tags:
-      - Admin
-    put:
-      consumes:
-      - application/json
-      description: Update movie by ID (Admin only)
-      parameters:
-      - description: Movie ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Movie info
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/models.MovieRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.SuccessMessage'
+            additionalProperties:
+              type: string
+            type: object
         "400":
           description: Bad Request
           schema:
@@ -255,33 +290,93 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       security:
-      - Bearer: []
-      summary: Update Movie
+      - BearerAuth: []
+      summary: Delete movie
       tags:
       - Admin
-  /auth/history:
     get:
-      description: Get logged-in user's order history
+      parameters:
+      - description: Movie ID
+        in: path
+        name: id
+        required: true
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/models.Order'
-            type: array
-        "500":
-          description: Internal Server Error
+            $ref: '#/definitions/models.TMDBMovie'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get movie by ID
+      tags:
+      - Admin
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Movie ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Partial movie update (only send fields you want to update)
+        in: body
+        name: movie
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
           schema:
             additionalProperties:
               type: string
             type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
       security:
-      - Bearer: []
-      summary: Get Order History
+      - BearerAuth: []
+      summary: Patch update movie
       tags:
-      - Users
+      - Admin
+  /admin/sync/popular:
+    post:
+      description: Fetch popular movies from TMDB and store in database
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Sync Popular Movies
+      tags:
+      - Admin
   /auth/login:
     post:
       consumes:
@@ -312,62 +407,37 @@ paths:
       summary: Login user
       tags:
       - Auth
-  /auth/profile:
-    get:
-      description: Get logged-in user's profile information
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Mem-blacklist JWT token agar tidak bisa dipakai lagi.
       produces:
       - application/json
       responses:
         "200":
           description: OK
-          schema:
-            $ref: '#/definitions/models.UserProfileResponse'
-        "500":
-          description: Internal Server Error
           schema:
             additionalProperties:
               type: string
             type: object
-      security:
-      - Bearer: []
-      summary: Get User Profile
-      tags:
-      - Users
-    put:
-      consumes:
-      - application/json
-      description: Update logged-in user's profile
-      parameters:
-      - description: Profile update request
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/models.UserProfileUpdate'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.UserProfileResponse'
         "400":
           description: Bad Request
           schema:
             additionalProperties:
               type: string
             type: object
-        "500":
-          description: Internal Server Error
+        "401":
+          description: Unauthorized
           schema:
             additionalProperties:
               type: string
             type: object
       security:
-      - Bearer: []
-      summary: Edit Profile
+      - BearerAuth: []
+      summary: Logout user
       tags:
-      - Users
+      - Auth
   /auth/register:
     post:
       consumes:
@@ -398,9 +468,26 @@ paths:
       summary: Register new user
       tags:
       - Auth
+  /movies/all:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.TMDBMovie'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get all movies
+      tags:
+      - Movies
   /movies/filter:
     get:
-      description: Filter movies by name or genre with pagination
       parameters:
       - description: Movie name keyword
         in: query
@@ -438,7 +525,6 @@ paths:
       - Movies
   /movies/popular:
     get:
-      description: List popular movies with pagination
       parameters:
       - default: 10
         description: Number of movies per page
@@ -466,26 +552,8 @@ paths:
       summary: Get Popular Movies
       tags:
       - Movies
-  /movies/sync/popular:
-    post:
-      description: Fetch popular movies from TMDB and store in database
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessMessage'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Sync Popular Movies
-      tags:
-      - Movies
   /movies/upcoming:
     get:
-      description: List upcoming movies with pagination
       parameters:
       - default: 10
         description: Number of movies per page
@@ -544,6 +612,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Create Order
       tags:
       - Orders
@@ -569,18 +639,41 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get Movie Detail
       tags:
       - Orders
   /orders/{movieId}/schedules:
     get:
-      description: Get all schedules for a specific movie
+      description: |-
+        Get all schedules for a specific movie with optional filters:
+        - cinemaName (string, partial match)
+        - locationName (string, partial match)
+        - startTime (HH:MM format)
+        - date (YYYY-MM-DD format)
       parameters:
       - description: Movie ID
         in: path
         name: movieId
         required: true
         type: integer
+      - description: Filter by cinema name (partial match)
+        in: query
+        name: cinemaName
+        type: string
+      - description: Filter by location name (partial match)
+        in: query
+        name: locationName
+        type: string
+      - description: Filter by start time (HH:MM)
+        in: query
+        name: startTime
+        type: string
+      - description: Filter by date (YYYY-MM-DD)
+        in: query
+        name: date
+        type: string
       produces:
       - application/json
       responses:
@@ -590,13 +683,21 @@ paths:
             items:
               $ref: '#/definitions/models.Schedule'
             type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
         "500":
           description: Internal Server Error
           schema:
             additionalProperties:
               type: string
             type: object
-      summary: Get Movie Schedules
+      security:
+      - BearerAuth: []
+      summary: Get Movie Schedules with Filters
       tags:
       - Orders
   /orders/seats/{scheduleId}:
@@ -623,11 +724,148 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get Available Seats
       tags:
       - Orders
+  /user/history:
+    get:
+      description: Get logged-in user's order history
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Order'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Order History
+      tags:
+      - Users
+  /user/password:
+    patch:
+      consumes:
+      - application/json
+      description: Ganti password akun. User harus mengirim password lama dan password
+        baru.
+      parameters:
+      - description: Current & new password
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'message: password updated successfully'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: current password is incorrect
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Change user password
+      tags:
+      - Users
+  /user/profile:
+    get:
+      description: Get logged-in user's profile information
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UserProfileResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get User Profile
+      tags:
+      - Users
+    patch:
+      consumes:
+      - multipart/form-data
+      description: Edit profile sekaligus upload avatar (opsional). Hanya field yang
+        dikirim yang akan di-update.
+      parameters:
+      - description: First name
+        in: formData
+        name: first_name
+        type: string
+      - description: Last name
+        in: formData
+        name: last_name
+        type: string
+      - description: Phone number
+        in: formData
+        name: phone
+        type: string
+      - description: Avatar image
+        in: formData
+        name: avatar
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.User'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update user profile
+      tags:
+      - Users
 securityDefinitions:
-  Bearer:
+  BearerAuth:
     description: 'Enter your user JWT token like: Bearer <token>'
     in: header
     name: Authorization

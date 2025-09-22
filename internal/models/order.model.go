@@ -3,26 +3,34 @@ package models
 import "time"
 
 type Schedule struct {
-	ID         int       `json:"id"`
-	MovieTitle string    `json:"movie_title"`
-	Cinema     string    `json:"cinema"`
-	Location   string    `json:"location"`
-	StartTime  time.Time `json:"start_time"`
-	Date       time.Time `json:"date"`
+	ID         int    `json:"id"`
+	MovieID    int    `json:"movie_id"`
+	Cinema     string `json:"cinema"`
+	MovieTitle string `json:"movie_title"`
+	Location   string `json:"location"`
+	StartTime  string `json:"start_time"`
+	Date       string `json:"date"`
 }
 
-type Seatcode struct {
+type Seat struct {
+	ID       int    `json:"id"`
+	CinemaID int    `json:"cinema_id"`
 	SeatCode string `json:"seat_code"`
+	IsBooked bool   `json:"is_booked"`
 }
 
 type MovieDetail struct {
-	ID          int      `json:"id"`
-	Title       string   `json:"title"`
-	Overview    string   `json:"overview"`
-	ReleaseDate string   `json:"release_date"`
-	Runtime     int      `json:"runtime"`
-	Genres      []string `json:"genres"`
-	Casts       []string `json:"casts"`
+	ID           int        `json:"id"`
+	Title        string     `json:"title"`
+	Overview     string     `json:"overview"`
+	ReleaseDate  string     `json:"release_date"`
+	Runtime      int        `json:"runtime"`
+	Genres       []string   `json:"genres"`
+	Casts        []string   `json:"casts"`
+	Director     string     `json:"director"`
+	PosterPath   string     `json:"poster_path"`
+	BackdropPath string     `json:"backdrop_path"`
+	Schedules    []Schedule `json:"schedules"`
 }
 
 type Order struct {
@@ -34,16 +42,11 @@ type Order struct {
 	OrderDate  time.Time `json:"order_date"`
 	Seats      []string  `json:"seats"`
 }
-type Schedule2 struct {
-	ID       int    `json:"id" example:"1"`
-	MovieID  int    `json:"movie_id" example:"101"`
-	Time     string `json:"time" example:"2025-09-08T14:00:00Z"`
-	CinemaID int    `json:"cinema_id" example:"5"`
-}
 
-type Seat struct {
-	ID       int    `json:"id"`
-	CinemaID int    `json:"cinema_id"`
-	SeatCode string `json:"seat_code"`
-	IsBooked bool   `json:"is_booked"`
+// Schedule2 dipakai untuk input request Add Movie (jadwal baru)
+type Schedule2 struct {
+	CinemaID   int    `json:"cinema_id"`
+	LocationID int    `json:"location_id"`
+	TimeID     int    `json:"time_id"`
+	Date       string `json:"date"`
 }

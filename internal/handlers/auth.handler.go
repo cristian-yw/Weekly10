@@ -2,20 +2,23 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/cristian-yw/Weekly10/internal/middleware"
 	"github.com/cristian-yw/Weekly10/internal/models"
 	"github.com/cristian-yw/Weekly10/internal/repository"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthHandler struct {
-	ar *repository.AuthRepository
+	ar          *repository.AuthRepository
+	RedisClient *redis.Client
 }
 
-func NewAuthHandler(ar *repository.AuthRepository) *AuthHandler {
-	return &AuthHandler{ar: ar}
+func NewAuthHandler(ar *repository.AuthRepository, rdb *redis.Client) *AuthHandler {
+	return &AuthHandler{ar: ar, RedisClient: rdb}
 }
 
 // @Summary Register new user
@@ -86,20 +89,47 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Login successful", "token": token})
 }
 
-// @Summary Get user profile
-// @Description Get profile information of logged-in user
-// @Tags Auth
-// @Produce json
-// @Success 200
-// @Failure 401 {object} models.ErrorResponse
-// @Security ApiKeyAuth
-// @Router /auth/profile [get]
-func (h *AuthHandler) Profile(c *gin.Context) {
-	userID, _ := c.Get("userID")
-	role, _ := c.Get("role")
+// // @Summary Get user profile
+// // @Description Get profile information of logged-in user
+// // @Tags Auth
+// // @Produce json
+// // @Success 200
+// // @Failure 401 {object} models.ErrorResponse
+// // @Security ApiKeyAuth
+// // @Router /auth/profile [get]
+// func (h *AuthHandler) Profile(c *gin.Context) {
+// 	userID, _ := c.Get("userID")
+// 	role, _ := c.Get("role")
+
+// 	c.JSON(http.StatusOK, gin.H{
+// 		"userID": userID,
+// 		"role":   role,
+// 	})
+// }
+
+// Logout godoc
+// @Summary      Logout user
+// @Description  Mem-blacklist JWT token agar tidak bisa dipakai lagi.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object} map[string]string
+// @Failure      400  {object} map[string]string
+// @Failure      401  {object} map[string]string
+// @Router       /auth/logout [post]
+func (h *AuthHandler) Logout(c *gin.Context) {
+
+	tokenString := c.GetString("token")
+	if tokenString != "" {
+		err := h.RedisClient.Set(c, "blacklist:"+tokenString, "true", time.Hour*24).Err()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to blacklist token"})
+			return
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"userID": userID,
-		"role":   role,
+		"message": "Logout berhasil",
 	})
 }

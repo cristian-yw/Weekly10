@@ -6,9 +6,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cristian-yw/Weekly10/internal/config"
 	"github.com/cristian-yw/Weekly10/internal/models"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/redis/go-redis/v9"
 )
 
 var jwtKey = []byte(getSecret())
@@ -25,7 +27,7 @@ func GenerateJWT(userID int, role string) (string, error) {
 		UserID: userID,
 		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(30 * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
@@ -33,7 +35,7 @@ func GenerateJWT(userID int, role string) (string, error) {
 	return token.SignedString(jwtKey)
 }
 
-func AuthMiddleware() gin.HandlerFunc {
+func AuthMiddleware(rdb *redis.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -49,23 +51,33 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		token, err := jwt.ParseWithClaims(parts[1], &models.JWTClaim{}, func(t *jwt.Token) (interface{}, error) {
-			return jwtKey, nil
-		})
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token parsing error"})
+		tokenString := parts[1]
+
+		if val, _ := rdb.Get(config.Ctx, "blacklist:"+tokenString).Result(); val == "true" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "token sudah logout"})
 			c.Abort()
 			return
 		}
 
-		if claims, ok := token.Claims.(*models.JWTClaim); ok && token.Valid {
-			c.Set("userID", claims.UserID)
-			c.Set("role", claims.Role)
-		} else {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+		token, err := jwt.ParseWithClaims(tokenString, &models.JWTClaim{}, func(t *jwt.Token) (interface{}, error) {
+			return jwtKey, nil
+		})
+		if err != nil || !token.Valid {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token invalid"})
 			c.Abort()
 			return
 		}
+
+		if claims, ok := token.Claims.(*models.JWTClaim); ok {
+			c.Set("userID", claims.UserID)
+			c.Set("role", claims.Role)
+			c.Set("token", tokenString) // untuk logout handler
+		} else {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid claims"})
+			c.Abort()
+			return
+		}
+
 		c.Next()
 	}
 }
@@ -75,6 +87,18 @@ func AdminOnly() gin.HandlerFunc {
 		role, exists := c.Get("role")
 		if !exists || role.(string) != "admin" {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+func UserOnly() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, exists := c.Get("role")
+		if !exists || role.(string) != "user" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "User only"})
 			c.Abort()
 			return
 		}

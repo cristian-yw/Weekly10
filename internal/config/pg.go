@@ -10,13 +10,18 @@ import (
 
 func InitDB() (*pgxpool.Pool, error) {
 	dbUser := os.Getenv("DB_USER")
-	dbPass := os.Getenv("DB_PASS")
+	dbPass := os.Getenv("DB_PASSWORD") // gunakan DB_PASSWORD
 	dbHost := os.Getenv("DB_HOST")
 	dbPort := os.Getenv("DB_PORT")
 	dbName := os.Getenv("DB_NAME")
-	connstring := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", dbUser, dbPass, dbHost, dbPort, dbName)
+
+	connstring := fmt.Sprintf(
+		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		dbUser, dbPass, dbHost, dbPort, dbName,
+	)
 	return pgxpool.New(context.Background(), connstring)
 }
+
 func TestDB(db *pgxpool.Pool) error {
 	return db.Ping(context.Background())
 }
