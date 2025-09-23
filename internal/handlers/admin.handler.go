@@ -133,11 +133,11 @@ func (h *AdminHandler) CreateMovie(c *gin.Context) {
 
 	// Upload poster
 	if file, err := c.FormFile("poster"); err == nil {
-		if err := os.MkdirAll("uploads/poster", os.ModePerm); err != nil {
+		if err := os.MkdirAll("/", os.ModePerm); err != nil {
 			c.JSON(http.StatusInternalServerError, models.ErrorResponse{Error: err.Error()})
 			return
 		}
-		dst := filepath.Join("uploads/poster", fmt.Sprintf("%d_%s", time.Now().Unix(), file.Filename))
+		dst := filepath.Join(fmt.Sprintf("%d_%s", time.Now().Unix(), file.Filename))
 		if err := c.SaveUploadedFile(file, dst); err != nil {
 			c.JSON(http.StatusInternalServerError, models.ErrorResponse{Error: err.Error()})
 			return
@@ -151,7 +151,7 @@ func (h *AdminHandler) CreateMovie(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, models.ErrorResponse{Error: err.Error()})
 			return
 		}
-		dst := filepath.Join("uploads/backdrop", fmt.Sprintf("%d_%s", time.Now().Unix(), file.Filename))
+		dst := filepath.Join("/", fmt.Sprintf("%d_%s", time.Now().Unix(), file.Filename))
 		if err := c.SaveUploadedFile(file, dst); err != nil {
 			c.JSON(http.StatusInternalServerError, models.ErrorResponse{Error: err.Error()})
 			return
