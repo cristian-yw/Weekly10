@@ -28,7 +28,7 @@ services:
     networks:
       - tickitz-net
     ports:
-      - 6379:6379
+      - 6370:6379
 
   db:
     image: postgres:18-alpine3.22
