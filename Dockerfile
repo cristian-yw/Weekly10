@@ -1,26 +1,27 @@
-FROM golang:1.25-alpine AS builder
+FROM golang:1.25.1-alpine AS builder
 
-WORKDIR /build 
+WORKDIR /build
 
-RUN apk update && apk add --no-cache git
+RUN apk add --no-cache git
 
+# Copy dependency project
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
-# build main.go diberi nama server
 RUN go build -o server ./cmd/main.go
-
 
 FROM alpine:3.22
 
-# copy hasil build (server) dari stage builder ke directory /app/server
 WORKDIR /app
+RUN apk add --no-cache make
+
+# Copy the built binary
 COPY --from=builder /build/server ./server
 
 RUN chmod +x server
 
-EXPOSE 8080
+EXPOSE 3000
 
-CMD [ "/app/server" ]
+CMD [ "./server"]

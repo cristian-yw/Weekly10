@@ -1,0 +1,79 @@
+services:
+  backend:
+    build:
+      context: ./Weekly10
+      dockerfile: Dockerfile
+    container_name: c_tickitz-backend
+    environment:
+      DB_USER: cegans
+      DB_PASSWORD: 12345
+      DB_NAME: Learn_db
+      DB_HOST: db
+      DB_PORT: 5432
+      REDIS_ADDR: redis:6380
+    depends_on:
+      - db
+      - redis
+    networks:
+      - tickitz-net
+    volumes:
+      - ./backend:/src
+      - ./backend/uploads:/src/uploads   # agar poster bisa diakses
+    ports:
+    - "8080:8080"  # expose backend ke host
+
+  frontend:
+    build:
+      context: ./C Tickitz
+      dockerfile: Dockerfile
+    container_name: c_tickitz-frontend
+    ports:
+    - "3000:80"
+    networks:
+      - tickitz-net
+    volumes:
+      - ./frontend:/src
+    depends_on:
+      - backend
+
+  nginx:
+    image: nginx:stable-bookworm
+    container_name: c_tickitz-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - "./C Tickitz/nginx:/etc/nginx:ro"
+      - "./frontend/dist:/var/www/tickiz"
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - tickitz-net
+
+  redis:
+    image: redis:7
+    container_name: c_tickitz-redis
+    command: ["redis-server", "--port", "6380"]
+    networks:
+      - tickitz-net
+
+  db:
+    image: postgres:16
+    container_name: c_tickitz-db
+    restart: always
+    environment:
+      POSTGRES_USER: cegans
+      POSTGRES_PASSWORD: 12345
+      POSTGRES_DB: Learn_db
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - tickitz-net
+
+networks:
+  tickitz-net:
+
+volumes:
+  db_data:

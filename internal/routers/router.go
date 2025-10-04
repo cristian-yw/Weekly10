@@ -15,7 +15,7 @@ import (
 func InitRouter(db *pgxpool.Pool, rdb *redis.Client) *gin.Engine {
 	router := gin.Default()
 	router.Use(middleware.MyLogger)
-	router.Use(middleware.CORSMiddleware)
+	router.Use(middleware.CORSMiddleware())
 
 	InitAuthRouter(router, db, rdb)
 	InitMovieRouter(router, db, rdb)
