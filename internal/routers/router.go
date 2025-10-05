@@ -27,7 +27,7 @@ func InitRouter(db *pgxpool.Pool, rdb *redis.Client) *gin.Engine {
 	docs.SwaggerInfo.BasePath = "/"
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	router.Static("/uploads", "./uploads")
+	router.Static("/api/uploads", "./uploads")
 
 	router.NoRoute(func(ctx *gin.Context) {
 		ctx.JSON(http.StatusNotFound, gin.H{
