@@ -128,8 +128,6 @@ definitions:
         type: integer
       overview:
         type: string
-      popularity:
-        type: number
       poster_path:
         type: string
       release_date:
@@ -139,10 +137,6 @@ definitions:
       title:
         type: string
       tmdb_id:
-        type: integer
-      vote_average:
-        type: number
-      vote_count:
         type: integer
     type: object
   models.User:

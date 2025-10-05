@@ -1266,9 +1266,6 @@ const docTemplate = `{
                 "overview": {
                     "type": "string"
                 },
-                "popularity": {
-                    "type": "number"
-                },
                 "poster_path": {
                     "type": "string"
                 },
@@ -1282,12 +1279,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "tmdb_id": {
-                    "type": "integer"
-                },
-                "vote_average": {
-                    "type": "number"
-                },
-                "vote_count": {
                     "type": "integer"
                 }
             }
