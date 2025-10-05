@@ -4,27 +4,16 @@ services:
     volumes:
       - ./.env:/app/.env
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
     networks:
-      - tickitz-net   # agar poster bisa diakses
+      - tickitz-net
     ports:
-    - "8080:8080"  # expose backend ke host
-
-migrate:
-  image: migrate/migrate
-  volumes:
-    - ./db/migrations:/migrations
-  command:
-    - "-path=/migrations"
-    - "-database=postgresql://${DB_USER}:${DB_PASSWORD}@db:${DB_PORT}/${DB_NAME}?sslmode=disable"
-    - "up"  # ← This runs ALL pending migrations
-  depends_on:
-    db:
-      condition: service_healthy
-  networks:
-    - tickitz-net
-  restart: on-failure
+      - "8080:8080"
 
   frontend:
     image: ghcr.io/cristian-yw/c_tickitz:latest
@@ -34,6 +23,7 @@ migrate:
       - tickitz-net
     depends_on:
       - backend
+
   redis:
     image: redis:8.2-alpine
     volumes:
@@ -41,7 +31,7 @@ migrate:
     networks:
       - tickitz-net
     ports:
-      - 6370:6379
+      - "6370:6379"
 
   db:
     image: postgres:18-alpine3.22
@@ -53,6 +43,26 @@ migrate:
       - "5423:5432"
     networks:
       - tickitz-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    image: migrate/migrate
+    volumes:
+      - ./db/migrations:/migrations
+    command:
+      - "-path=/migrations"
+      - "-database=postgresql://${DB_USER}:${DB_PASSWORD}@db:${DB_PORT}/${DB_NAME}?sslmode=disable"
+      - "up"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - tickitz-net
+    restart: on-failure
 
 networks:
   tickitz-net:
