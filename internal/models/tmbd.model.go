@@ -9,9 +9,6 @@ type TMDBMovie struct {
 	GenreIDs     []int    `json:"-"`
 	Genres       []string `json:"genres"`
 	Runtime      int      `json:"runtime"`
-	Popularity   float64  `json:"popularity"`
-	VoteAverage  float64  `json:"vote_average"`
-	VoteCount    int      `json:"vote_count"`
 	PosterPath   string   `json:"poster_path"`
 	BackdropPath string   `json:"backdrop_path"`
 }

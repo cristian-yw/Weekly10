@@ -130,9 +130,6 @@ func (r *AdminRepository) GetMovieByID(ctx context.Context, id int) (*models.TMD
 			m.title,
 			m.overview,
 			COALESCE(TO_CHAR(m.release_date, 'YYYY-MM-DD'), '') AS release_date,
-			m.popularity,
-			m.vote_average,
-			m.vote_count,
 			COALESCE(array_agg(DISTINCT g.name) FILTER (WHERE g.name IS NOT NULL), '{}') AS genres,
 			COALESCE(m.poster_path, '') AS poster_path,
 			COALESCE(m.backdrop_path, '') AS backdrop_path,
@@ -152,9 +149,6 @@ func (r *AdminRepository) GetMovieByID(ctx context.Context, id int) (*models.TMD
 		&m.Title,
 		&m.Overview,
 		&m.ReleaseDate,
-		&m.Popularity,
-		&m.VoteAverage,
-		&m.VoteCount,
 		&genreNames,
 		&m.PosterPath,
 		&m.BackdropPath,
@@ -212,8 +206,8 @@ func (r *AdminRepository) UpsertMovie(m models.TMDBMovie) (int, error) {
 		context.Background(),
 		`INSERT INTO movies (
 			tmdb_id, title, overview, release_date, runtime,
-			poster_path, backdrop_path, popularity, vote_average, vote_count, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW(),NOW())
+			poster_path, backdrop_path, created_at, updated_at
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,,NOW(),NOW())
 		ON CONFLICT (tmdb_id) DO UPDATE SET
 			title=EXCLUDED.title,
 			overview=EXCLUDED.overview,
@@ -221,13 +215,11 @@ func (r *AdminRepository) UpsertMovie(m models.TMDBMovie) (int, error) {
 			runtime=EXCLUDED.runtime,
 			poster_path=EXCLUDED.poster_path,
 			backdrop_path=EXCLUDED.backdrop_path,
-			popularity=EXCLUDED.popularity,
-			vote_average=EXCLUDED.vote_average,
-			vote_count=EXCLUDED.vote_count,
+			
 			updated_at=NOW()
 		RETURNING id`,
 		m.TMDBID, m.Title, m.Overview, m.ReleaseDate, m.Runtime,
-		m.PosterPath, m.BackdropPath, m.Popularity, m.VoteAverage, m.VoteCount,
+		m.PosterPath, m.BackdropPath,
 	).Scan(&movieID)
 
 	return movieID, err
