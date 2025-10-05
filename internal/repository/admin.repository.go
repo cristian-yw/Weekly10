@@ -207,7 +207,7 @@ func (r *AdminRepository) UpsertMovie(m models.TMDBMovie) (int, error) {
 		`INSERT INTO movies (
 			tmdb_id, title, overview, release_date, runtime,
 			poster_path, backdrop_path, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,,NOW(),NOW())
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW())
 		ON CONFLICT (tmdb_id) DO UPDATE SET
 			title=EXCLUDED.title,
 			overview=EXCLUDED.overview,
