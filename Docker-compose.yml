@@ -11,6 +11,21 @@ services:
     ports:
     - "8080:8080"  # expose backend ke host
 
+migrate:
+  image: migrate/migrate
+  volumes:
+    - ./db/migrations:/migrations
+  command:
+    - "-path=/migrations"
+    - "-database=postgresql://${DB_USER}:${DB_PASSWORD}@db:${DB_PORT}/${DB_NAME}?sslmode=disable"
+    - "up"  # ← This runs ALL pending migrations
+  depends_on:
+    db:
+      condition: service_healthy
+  networks:
+    - tickitz-net
+  restart: on-failure
+
   frontend:
     image: ghcr.io/cristian-yw/c_tickitz:latest
     ports:
