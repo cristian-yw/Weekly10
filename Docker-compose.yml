@@ -3,6 +3,7 @@ services:
     image: ghcr.io/cristian-yw/weekly10:latest
     volumes:
       - ./.env:/app/.env
+      - ./uploads:/app/uploads
     depends_on:
       - db
       - redis
