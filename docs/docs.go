@@ -1254,6 +1254,12 @@ const docTemplate = `{
                 "backdrop_path": {
                     "type": "string"
                 },
+                "genre_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
                 "genres": {
                     "type": "array",
                     "items": {

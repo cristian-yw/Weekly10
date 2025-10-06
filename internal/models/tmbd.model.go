@@ -6,7 +6,7 @@ type TMDBMovie struct {
 	Title        string   `json:"title"`
 	Overview     string   `json:"overview"`
 	ReleaseDate  string   `json:"release_date"`
-	GenreIDs     []int    `json:"-"`
+	GenreIDs     []int    `json:"genre_ids"`
 	Genres       []string `json:"genres"`
 	Runtime      int      `json:"runtime"`
 	PosterPath   string   `json:"poster_path"`

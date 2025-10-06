@@ -120,6 +120,10 @@ definitions:
     properties:
       backdrop_path:
         type: string
+      genre_ids:
+        items:
+          type: integer
+        type: array
       genres:
         items:
           type: string
