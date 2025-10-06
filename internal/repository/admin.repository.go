@@ -304,7 +304,7 @@ func (r *AdminRepository) SyncPopular(apiKey string) error {
 	}
 
 	// NOTE: jika ingin sync popular ganti /movie/upcoming -> /movie/popular
-	url := fmt.Sprintf("https://api.themoviedb.org/3/movie/upcoming?api_key=%s", apiKey)
+	url := fmt.Sprintf("https://api.themoviedb.org/3/movie/popular?api_key=%s", apiKey)
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
